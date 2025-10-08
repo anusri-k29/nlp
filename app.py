@@ -160,7 +160,7 @@ if model is not None and le is not None:
     # File uploader
     uploaded_file = st.file_uploader(
         "Choose an audio file", 
-        type=['wav', 'mp3'],
+        type=['wav', 'mp3', 'ogg', 'flac', 'm4a'],
         help="Upload an audio file containing speech"
     )
     
@@ -215,7 +215,7 @@ if model is not None and le is not None:
                         st.metric("⏱️ Duration", f"{results['duration']:.2f}s")
                     
                     with col_res3:
-                        st.metric("📊 Segments Analyzed", results['num_segments'])
+                        st.metric("Segments Analyzed", results['num_segments'])
                     
                     st.markdown("---")
                     
