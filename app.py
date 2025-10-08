@@ -160,7 +160,7 @@ if model is not None and le is not None:
     # File uploader
     uploaded_file = st.file_uploader(
         "Choose an audio file", 
-        type=['wav', 'mp3', 'ogg', 'flac', 'm4a'],
+        type=['wav', 'mp3'],
         help="Upload an audio file containing speech"
     )
     
@@ -181,7 +181,7 @@ if model is not None and le is not None:
             st.json(file_details)
         
         # Process button
-        if st.button("🔍 Analyze Emotion", type="primary", use_container_width=True):
+        if st.button(" Analyze Emotion", type="primary", use_container_width=True):
             
             with st.spinner("Processing audio... This may take a moment."):
                 
@@ -268,9 +268,9 @@ if model is not None and le is not None:
         st.info("Upload an audio file to get started!")
         
         st.markdown("---")
-        st.subheader("📝 Instructions")
+        st.subheader("Instructions")
         st.markdown("""
-        1. **Upload** an audio file (WAV, MP3, OGG, FLAC, or M4A format)
+        1. **Upload** an audio file (WAV or MP3)
         2. **Adjust** settings in the sidebar if needed
         3. **Click** the "Analyze Emotion" button
         4. **View** the predicted emotion and detailed analysis
