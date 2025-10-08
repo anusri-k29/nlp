@@ -12,21 +12,13 @@ from collections import Counter
 
 # Page config
 st.set_page_config(
-    page_title="Speech Emotion Recognition",
-    page_icon="🎤",
+    page_title="Beyond Words - Speech Emotion Recognition",
     layout="wide"
 )
 
 # Title and description
-st.title("🎤 Speech Emotion Recognition")
+st.title("Beyond Words - Speech Emotion Recognition")
 st.markdown("Upload an audio file to detect the emotion in speech!")
-
-# Sidebar
-st.sidebar.header("⚙️ Settings")
-segment_duration = st.sidebar.slider("Segment Duration (seconds)", 2.0, 5.0, 3.0, 0.5)
-overlap = st.sidebar.slider("Overlap (seconds)", 0.5, 2.5, 1.5, 0.5)
-show_details = st.sidebar.checkbox("Show Detailed Analysis", value=True)
-show_spectrogram = st.sidebar.checkbox("Show Spectrogram", value=True)
 
 # Load model and encoder (you need to save these first!)
 @st.cache_resource
@@ -178,7 +170,7 @@ if model is not None and le is not None:
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            st.subheader("📁 Audio File")
+            st.subheader("Audio File")
             st.audio(uploaded_file, format='audio/wav')
             
             # File info
@@ -210,14 +202,14 @@ if model is not None and le is not None:
                     )
                     
                     # Display results
-                    st.success("✅ Analysis Complete!")
+                    st.success(" Analysis Complete!")
                     
                     # Main result
                     st.markdown("---")
                     col_res1, col_res2, col_res3 = st.columns(3)
                     
                     with col_res1:
-                        st.metric("🎯 Predicted Emotion", results['final_emotion'].upper())
+                        st.metric(" Predicted Emotion", results['final_emotion'].upper())
                     
                     with col_res2:
                         st.metric("⏱️ Duration", f"{results['duration']:.2f}s")
@@ -229,7 +221,7 @@ if model is not None and le is not None:
                     
                     # Detailed analysis
                     if show_details:
-                        st.subheader("📊 Detailed Analysis")
+                        st.subheader("Detailed Analysis")
                         
                         col_detail1, col_detail2 = st.columns(2)
                         
@@ -248,7 +240,7 @@ if model is not None and le is not None:
                     
                     # Visualizations
                     st.markdown("---")
-                    st.subheader("📈 Visualizations")
+                    st.subheader("Visualizations")
                     
                     viz_col1, viz_col2 = st.columns(2)
                     
@@ -273,7 +265,7 @@ if model is not None and le is not None:
     
     else:
         # Instructions
-        st.info("👆 Upload an audio file to get started!")
+        st.info("Upload an audio file to get started!")
         
         st.markdown("---")
         st.subheader("📝 Instructions")
@@ -295,16 +287,15 @@ if model is not None and le is not None:
         """)
         
         st.markdown("---")
-        st.subheader("💡 Tips")
+        st.subheader("Tips")
         st.markdown("""
         - For best results, use clear speech audio
         - Longer audio files are analyzed in segments
         - The app works with various audio formats
-        - Adjust segment duration and overlap in sidebar for fine-tuning
         """)
 
 else:
-    st.error("❌ Model not loaded. Please check if model files exist.")
+    st.error(" Model not loaded. Please check if model files exist.")
     st.info("""
     **Required files:**
     - `emotion_model.h5` (trained model)
@@ -331,7 +322,7 @@ else:
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: gray;'>"
-    "Built with ❤️ using Streamlit | Speech Emotion Recognition"
+    "Built using Streamlit | NLP Project "
     "</div>",
     unsafe_allow_html=True
 )
