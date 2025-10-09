@@ -125,13 +125,37 @@ def preprocess_audio_for_whisper(audio_array, sample_rate):
     return audio_array
 
 def transcribe_audio(model, audio_path, with_timestamps=False):
-    """Transcribe audio using Whisper"""
+    """Transcribe audio using Whisper (convert all to 16kHz mono WAV first)"""
     try:
-        result = model.transcribe(audio_path, word_timestamps=with_timestamps)
+        # Load audio with soundfile
+        audio, sr = sf.read(audio_path)
+        
+        # Convert to mono
+        if len(audio.shape) > 1:
+            audio = np.mean(audio, axis=1)
+        
+        # Resample to 16kHz if needed
+        if sr != 16000:
+            audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
+            sr = 16000
+        
+        # Save temporary WAV file for Whisper
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_wav:
+            sf.write(tmp_wav.name, audio, sr)
+            tmp_path = tmp_wav.name
+        
+        # Transcribe with Whisper
+        result = model.transcribe(tmp_path, word_timestamps=with_timestamps)
+        
+        # Cleanup temp file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        
         return result
     except Exception as e:
         st.error(f"Transcription error: {e}")
         return None
+
 
 def predict_emotion(audio, sr, model, le, mean, std, segment_duration=3.0, overlap=1.5):
     """Predict emotion from audio with sliding window"""
