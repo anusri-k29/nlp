@@ -13,6 +13,7 @@ import soundfile as sf
 import whisper
 from audio_recorder_streamlit import audio_recorder
 import io
+
 # Page config
 st.set_page_config(
     page_title="Beyond Words - AI Audio Analyzer",
@@ -109,24 +110,10 @@ if "Speech-to-Text" in analysis_mode or "Both" in analysis_mode:
 # HELPER FUNCTIONS
 # ============================================
 
-def preprocess_audio_for_whisper(audio_array, sample_rate):
-    """Preprocess audio for Whisper (16kHz mono)"""
-    if len(audio_array.shape) > 1:
-        audio_array = np.mean(audio_array, axis=1)
-    
-    if sample_rate != 16000:
-        audio_array = librosa.resample(audio_array, orig_sr=sample_rate, target_sr=16000)
-    
-    audio_array = audio_array.astype(np.float32)
-    if np.max(np.abs(audio_array)) > 0:
-        audio_array = audio_array / np.max(np.abs(audio_array))
-    
-    return audio_array
-
 def transcribe_audio(model, audio_path, with_timestamps=False):
-    """Transcribe audio using Whisper (convert all to 16kHz mono WAV first)"""
+    """Transcribe audio using Whisper (ffmpeg must be installed)"""
     try:
-        # Load audio with soundfile
+        # Load audio using soundfile
         audio, sr = sf.read(audio_path)
         
         # Convert to mono
@@ -138,7 +125,7 @@ def transcribe_audio(model, audio_path, with_timestamps=False):
             audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
             sr = 16000
         
-        # Save temporary WAV file for Whisper
+        # Save temporary WAV for Whisper
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_wav:
             sf.write(tmp_wav.name, audio, sr)
             tmp_path = tmp_wav.name
@@ -146,7 +133,7 @@ def transcribe_audio(model, audio_path, with_timestamps=False):
         # Transcribe with Whisper
         result = model.transcribe(tmp_path, word_timestamps=with_timestamps)
         
-        # Cleanup temp file
+        # Cleanup
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
         
@@ -155,11 +142,8 @@ def transcribe_audio(model, audio_path, with_timestamps=False):
         st.error(f"Transcription error: {e}")
         return None
 
-
 def predict_emotion(audio, sr, model, le, mean, std, segment_duration=3.0, overlap=1.5):
-    """Predict emotion from audio with sliding window"""
     total_duration = len(audio) / sr
-    
     if total_duration < 1.0:
         target_length = int(3.0 * sr)
         if len(audio) < target_length:
@@ -169,7 +153,6 @@ def predict_emotion(audio, sr, model, le, mean, std, segment_duration=3.0, overl
     hop_samples = int((segment_duration - overlap) * sr)
     
     all_predictions = []
-    all_confidences = []
     all_probabilities = []
     
     num_segments = max(1, (len(audio) - segment_samples) // hop_samples + 1)
@@ -198,14 +181,9 @@ def predict_emotion(audio, sr, model, le, mean, std, segment_duration=3.0, overl
         
         prediction = model.predict(mfcc_input, verbose=0)
         predicted_idx = np.argmax(prediction[0])
-        confidence = prediction[0][predicted_idx]
-        
         emotion = le.classes_[predicted_idx]
-        
         all_predictions.append(emotion)
-        all_confidences.append(confidence)
         all_probabilities.append(prediction[0])
-        
         progress_bar.progress((i + 1) / num_segments)
     
     progress_bar.empty()
@@ -213,7 +191,6 @@ def predict_emotion(audio, sr, model, le, mean, std, segment_duration=3.0, overl
     
     vote_counts = Counter(all_predictions)
     majority_emotion = vote_counts.most_common(1)[0][0]
-    
     avg_probs = np.mean(all_probabilities, axis=0)
     avg_emotion = le.classes_[np.argmax(avg_probs)]
     
@@ -228,7 +205,6 @@ def predict_emotion(audio, sr, model, le, mean, std, segment_duration=3.0, overl
     }
 
 def plot_spectrogram(audio, sr):
-    """Plot mel spectrogram"""
     fig, ax = plt.subplots(figsize=(10, 4))
     S = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=128)
     S_dB = librosa.power_to_db(S, ref=np.max)
@@ -239,22 +215,16 @@ def plot_spectrogram(audio, sr):
     return fig
 
 def plot_emotion_distribution(probs):
-    """Plot emotion probability distribution"""
     fig, ax = plt.subplots(figsize=(10, 5))
     emotions = list(probs.keys())
     probabilities = list(probs.values())
-    
     colors = plt.cm.viridis(np.linspace(0, 1, len(emotions)))
     bars = ax.barh(emotions, probabilities, color=colors)
-    
     ax.set_xlabel('Probability')
     ax.set_title('Emotion Probability Distribution')
     ax.set_xlim([0, 1])
-    
     for bar, prob in zip(bars, probabilities):
-        ax.text(prob + 0.01, bar.get_y() + bar.get_height()/2, 
-                f'{prob:.2%}', va='center')
-    
+        ax.text(prob + 0.01, bar.get_y() + bar.get_height()/2, f'{prob:.2%}', va='center')
     plt.tight_layout()
     return fig
 
@@ -262,7 +232,7 @@ def plot_emotion_distribution(probs):
 # MAIN APP
 # ============================================
 
-# Input method selection
+# Input selection
 st.markdown("---")
 input_method = st.radio(
     "Choose Input Method:",
@@ -270,39 +240,20 @@ input_method = st.radio(
     horizontal=True
 )
 
-audio_data = None
 audio_path = None
 
-# Handle different input methods
 if input_method == " Upload Audio File":
     uploaded_file = st.file_uploader(
         "Choose an audio file",
-        type=['wav', 'mp3', 'ogg', 'flac', 'm4a'],
-        help="Upload an audio file containing speech"
+        type=['wav', 'mp3', 'ogg', 'flac', 'm4a']
     )
-    
-    if uploaded_file is not None:
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            st.subheader(" Uploaded Audio")
-            st.audio(uploaded_file, format='audio/wav')
-            
-            file_details = {
-                "Filename": uploaded_file.name,
-                "FileSize": f"{uploaded_file.size / 1024:.2f} KB"
-            }
-            st.json(file_details)
-        
-        # Save temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
+    if uploaded_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
             tmp_file.write(uploaded_file.getvalue())
             audio_path = tmp_file.name
+        st.audio(uploaded_file)
 
 elif input_method == "🎙️ Record from Microphone":
-    st.info("🎤 Click the microphone button below to start recording. Click again to stop.")
-    
-    # Audio recorder
     audio_bytes = audio_recorder(
         text="Click to Record",
         recording_color="#e74c3c",
@@ -310,170 +261,45 @@ elif input_method == "🎙️ Record from Microphone":
         icon_name="microphone",
         icon_size="3x",
     )
-    
     if audio_bytes:
-        st.success(" Recording captured!")
-        
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            st.subheader("🎙️ Recorded Audio")
-            st.audio(audio_bytes, format='audio/wav')
-        
-        # Save recorded audio
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
             tmp_file.write(audio_bytes)
             audio_path = tmp_file.name
+        st.audio(audio_bytes)
 
 # Analyze button
-if audio_path and st.button(" Analyze Audio", type="primary", use_container_width=True):
+if audio_path and st.button(" Analyze Audio"):
+    try:
+        audio, sr = librosa.load(audio_path, sr=22050)
+        
+        # Speech-to-text
+        if whisper_model and ("Speech-to-Text" in analysis_mode or "Both" in analysis_mode):
+            st.subheader(" Speech-to-Text Transcription")
+            transcription_result = transcribe_audio(whisper_model, audio_path, with_timestamps=show_timestamps)
+            if transcription_result:
+                st.success(transcription_result['text'])
+        
+        # Emotion recognition
+        if emotion_model and ("Emotion" in analysis_mode or "Both" in analysis_mode):
+            st.subheader(" Emotion Recognition")
+            emotion_results = predict_emotion(audio, sr, emotion_model, le, MEAN, STD,
+                                             segment_duration, overlap)
+            st.metric("Predicted Emotion", emotion_results['final_emotion'].upper())
+            st.metric("Duration", f"{emotion_results['duration']:.2f}s")
+            st.metric("Segments", emotion_results['num_segments'])
+        
+        if os.path.exists(audio_path):
+            os.unlink(audio_path)
     
-    with st.spinner(" Processing audio..."):
-        try:
-            # Load audio
-            audio, sr = librosa.load(audio_path, sr=22050)
-            
-            st.markdown("---")
-            
-            # ===== SPEECH-TO-TEXT =====
-            if whisper_model and ("Speech-to-Text" in analysis_mode or "Both" in analysis_mode):
-                st.subheader(" Speech-to-Text Transcription")
-                
-                with st.spinner("Transcribing..."):
-                    transcription_result = transcribe_audio(whisper_model, audio_path, show_timestamps)
-                
-                if transcription_result:
-                    # Display transcription
-                    st.markdown("###  Transcribed Text:")
-                    st.success(transcription_result['text'])
-                    
-                    # Show timestamps if enabled
-                    if show_timestamps and 'segments' in transcription_result:
-                        with st.expander("⏱️ View Timestamps"):
-                            for segment in transcription_result['segments']:
-                                start = segment['start']
-                                end = segment['end']
-                                text = segment['text']
-                                st.write(f"**[{start:.2f}s - {end:.2f}s]:** {text}")
-                    
-                    # Detected language
-                    if 'language' in transcription_result:
-                        st.info(f" Detected Language: **{transcription_result['language'].upper()}**")
-                
-                st.markdown("---")
-            
-            # ===== EMOTION RECOGNITION =====
-            if emotion_model and ("Emotion" in analysis_mode or "Both" in analysis_mode):
-                st.subheader(" Emotion Recognition")
-                
-                emotion_results = predict_emotion(
-                    audio, sr, emotion_model, le, MEAN, STD,
-                    segment_duration=segment_duration,
-                    overlap=overlap
-                )
-                
-                # Display emotion results
-                col_res1, col_res2, col_res3 = st.columns(3)
-                
-                with col_res1:
-                    st.metric(" Predicted Emotion", emotion_results['final_emotion'].upper())
-                
-                with col_res2:
-                    st.metric(" Duration", f"{emotion_results['duration']:.2f}s")
-                
-                with col_res3:
-                    st.metric(" Segments", emotion_results['num_segments'])
-                
-                st.markdown("---")
-                
-                # Detailed emotion analysis
-                col_detail1, col_detail2 = st.columns(2)
-                
-                with col_detail1:
-                    st.markdown("**Segment Distribution:**")
-                    for emotion, count in emotion_results['vote_counts'].most_common():
-                        percentage = (count / emotion_results['num_segments']) * 100
-                        st.write(f"• **{emotion.capitalize()}**: {count}/{emotion_results['num_segments']} ({percentage:.1f}%)")
-                
-                with col_detail2:
-                    st.markdown("**Confidence Scores:**")
-                    sorted_probs = sorted(emotion_results['avg_probabilities'].items(), 
-                                        key=lambda x: x[1], reverse=True)
-                    for emotion, prob in sorted_probs:
-                        st.write(f"• **{emotion.capitalize()}**: {prob:.2%}")
-                
-                # Visualizations
-                st.markdown("---")
-                st.subheader(" Visualizations")
-                
-                viz_col1, viz_col2 = st.columns(2)
-                
-                with viz_col1:
-                    fig_dist = plot_emotion_distribution(emotion_results['avg_probabilities'])
-                    st.pyplot(fig_dist)
-                
-                with viz_col2:
-                    if show_spectrogram:
-                        fig_spec = plot_spectrogram(audio, sr)
-                        st.pyplot(fig_spec)
-            
-            # Cleanup
-            if os.path.exists(audio_path):
-                os.unlink(audio_path)
-        
-        except Exception as e:
-            st.error(f" Error during analysis: {e}")
-            if audio_path and os.path.exists(audio_path):
-                os.unlink(audio_path)
-
-# Instructions
-else:
-    if not audio_path:
-        st.info(" Upload an audio file or record from microphone to get started!")
-        
-        st.markdown("---")
-        st.subheader(" About")
-        
-        col_about1, col_about2 = st.columns(2)
-        
-        with col_about1:
-            st.markdown("""
-            ### 🎭 Emotion Recognition
-            Analyzes speech to detect emotions:
-            - 😐 Neutral
-            - 😌 Calm
-            - 😊 Happy
-            - 😢 Sad
-            - 😠 Angry
-            - 😨 Fearful
-            - 🤢 Disgust
-            - 😲 Surprised
-            """)
-        
-        with col_about2:
-            st.markdown("""
-            ### 📝 Speech-to-Text
-            Converts speech to text using OpenAI Whisper:
-            - Multi-language support
-            - High accuracy transcription
-            - Optional timestamps
-            - Works with various accents
-            """)
-        
-        st.markdown("---")
-        st.markdown("""
-        ###  Tips
-        - Use clear audio for best results
-        - Microphone recording works best in quiet environments
-        - Longer audio files are analyzed in segments
-        - Adjust settings in the sidebar for fine-tuning
-        """)
+    except Exception as e:
+        st.error(f"Error: {e}")
+        if os.path.exists(audio_path):
+            os.unlink(audio_path)
 
 # Footer
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: gray;'>"
-    "Beyond Words -  Speech Emotion Recognition + Speech-to-Text"
-    "</div>",
-    unsafe_allow_html=True
+    "Beyond Words - Speech Emotion Recognition + Speech-to-Text"
+    "</div>", unsafe_allow_html=True
 )
