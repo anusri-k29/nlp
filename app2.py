@@ -13,7 +13,6 @@ import soundfile as sf
 import whisper
 from audio_recorder_streamlit import audio_recorder
 import io
-
 # Page config
 st.set_page_config(
     page_title="Beyond Words - AI Audio Analyzer",
