@@ -1,2 +1,1 @@
 ffmpeg
-audio_recorder_streamlit
