@@ -6,5 +6,4 @@ matplotlib
 soundfile
 openai-whisper
 torch
-audio-recorder-streamlit
 ffmpeg
