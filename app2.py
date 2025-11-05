@@ -63,10 +63,12 @@ if "Speech-to-Text" in analysis_mode or "Both" in analysis_mode:
 # ============================================
 # HUGGING FACE API SETUP (Updated URLs)
 # ============================================
+
 HF_API_URLS = {
-    "Normal XGBoost": "https://router.huggingface.co/hf-inference/models/anusrii29/xgboost-emotion",
-    "Fine-tuned XGBoost": "https://router.huggingface.co/hf-inference/models/anusrii29/xgboost-finetuned-emotion"
+    "Normal XGBoost": "https://anusrii29-xgboost-emotion-api.hf.space/run/predict_from_features",
+    "Fine-tuned XGBoost": "https://anusrii29-xgboost-finetuned-emotion-api.hf.space/run/predict_from_features"
 }
+
 
 # Load token if available (optional for public models)
 HF_TOKEN = st.secrets.get("HF_TOKEN", None)
