@@ -1,9 +1,12 @@
 streamlit
-tensorflow
 librosa
 numpy
 matplotlib
 soundfile
 openai-whisper
 torch
-ffmpeg
+torchaudio
+ffmpeg-python
+requests
+scikit-learn
+xgboost
