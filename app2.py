@@ -65,8 +65,8 @@ if "Speech-to-Text" in analysis_mode or "Both" in analysis_mode:
 # HUGGING FACE API SETUP
 # ============================================
 HF_API_URLS = {
-    "Normal XGBoost": "https://api-inference.huggingface.co/models/anusrii29/xgboost-emotion",
-    "Fine-tuned XGBoost": "https://api-inference.huggingface.co/models/anusrii29/xgboost-finetuned-emotion"
+    "Normal XGBoost": "https://router.huggingface.co/hf-inference/anusrii29/xgboost-emotion",
+    "Fine-tuned XGBoost": "https://router.huggingface.co/hf-inference/anusrii29/xgboost-finetuned-emotion"
 }
 
 # Securely store this in Streamlit Secrets
@@ -134,23 +134,24 @@ def predict_via_hf_api(features, model_type="Fine-tuned XGBoost"):
 # SPEECH-TO-TEXT FUNCTION
 # ============================================
 def transcribe_audio(model, audio_path, with_timestamps=False):
+    """Transcribe audio using Whisper, ensuring correct format"""
     try:
-        audio, sr = sf.read(audio_path)
-        if len(audio.shape) > 1:
-            audio = np.mean(audio, axis=1)
-        if sr != 16000:
-            audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
-            sr = 16000
+        # Load with librosa to ensure consistent mono 16kHz
+        audio, sr = librosa.load(audio_path, sr=16000, mono=True)
+
+        # Re-save in standard PCM WAV format
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_wav:
-            sf.write(tmp_wav.name, audio, sr)
+            sf.write(tmp_wav.name, audio, 16000, subtype='PCM_16')
             tmp_path = tmp_wav.name
+
+        # Run Whisper transcription
         result = model.transcribe(tmp_path, word_timestamps=with_timestamps)
         os.unlink(tmp_path)
         return result
+
     except Exception as e:
         st.error(f"Transcription error: {e}")
         return None
-
 # ============================================
 # PLOTS
 # ============================================
