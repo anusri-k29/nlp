@@ -9,7 +9,7 @@ import os
 import requests
 import soundfile as sf
 import whisper
-from audio_recorder_streamlit import audio_recorder
+#from audio_recorder_streamlit import audio_recorder
 
 # ============================================
 # PAGE CONFIG
