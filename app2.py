@@ -199,13 +199,15 @@ if input_method == " Upload Audio File":
         st.audio(uploaded_file)
 
 elif input_method == "🎙️ Record from Microphone":
-    audio_bytes = audio_recorder(
-        text="Click to Record",
-        recording_color="#e74c3c",
-        neutral_color="#3498db",
-        icon_name="microphone",
-        icon_size="3x",
-    )
+    st.info("Record audio using the built-in Streamlit recorder below:")
+    audio_bytes = st.audio_input("🎙️ Click to record your voice")
+
+    if audio_bytes:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+            tmp_file.write(audio_bytes.getbuffer())
+            audio_path = tmp_file.name
+        st.audio(audio_bytes)
+
     if audio_bytes:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
             tmp_file.write(audio_bytes)
