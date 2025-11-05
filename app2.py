@@ -9,7 +9,6 @@ import os
 import requests
 import soundfile as sf
 import whisper
-#from audio_recorder_streamlit import audio_recorder
 
 # ============================================
 # PAGE CONFIG
@@ -62,17 +61,19 @@ if "Speech-to-Text" in analysis_mode or "Both" in analysis_mode:
     show_timestamps = st.sidebar.checkbox("Show Timestamps", value=False)
 
 # ============================================
-# HUGGING FACE API SETUP
+# HUGGING FACE API SETUP (Updated URLs)
 # ============================================
 HF_API_URLS = {
-    "Normal XGBoost": "https://router.huggingface.co/hf-inference/anusrii29/xgboost-emotion",
-    "Fine-tuned XGBoost": "https://router.huggingface.co/hf-inference/anusrii29/xgboost-finetuned-emotion"
+    "Normal XGBoost": "https://router.huggingface.co/hf-inference/models/anusrii29/xgboost-emotion",
+    "Fine-tuned XGBoost": "https://router.huggingface.co/hf-inference/models/anusrii29/xgboost-finetuned-emotion"
 }
 
-# Securely store this in Streamlit Secrets
+# Load token if available (optional for public models)
 HF_TOKEN = st.secrets.get("HF_TOKEN", None)
-if not HF_TOKEN:
-    st.sidebar.warning("⚠️ Add your Hugging Face API token to .streamlit/secrets.toml as HF_TOKEN")
+if HF_TOKEN:
+    st.sidebar.success("🔑 Hugging Face token loaded.")
+else:
+    st.sidebar.info("Public model mode: no token required.")
 
 # ============================================
 # LOAD WHISPER MODEL
@@ -110,28 +111,36 @@ def extract_handcrafted_features(y, sr, n_mfcc=40):
     return feats
 
 # ============================================
-# HUGGING FACE API CALLER
+# HUGGING FACE API CALLER (robust version)
 # ============================================
 def predict_via_hf_api(features, model_type="Fine-tuned XGBoost"):
     """Send handcrafted features to Hugging Face API and get predictions."""
-    if not HF_TOKEN:
-        st.error("Hugging Face token missing. Add it to your Streamlit secrets.")
-        return None
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"} if HF_TOKEN else {}
 
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     try:
-        response = requests.post(HF_API_URLS[model_type], json={"features": features}, headers=headers)
+        response = requests.post(
+            HF_API_URLS[model_type],
+            json={"features": features},
+            headers=headers,
+            timeout=60
+        )
+
         if response.status_code == 200:
             return response.json()
+        elif response.status_code == 404:
+            st.error(f"Model not found: check if '{model_type}' repo has model_inference.py or is public.")
+        elif response.status_code == 401:
+            st.error("Unauthorized: your Hugging Face token may be invalid or expired.")
         else:
             st.error(f"API Error {response.status_code}: {response.text}")
-            return None
+        return None
+
     except Exception as e:
         st.error(f"Request failed: {e}")
         return None
 
 # ============================================
-# SPEECH-TO-TEXT FUNCTION
+# SPEECH-TO-TEXT FUNCTION (fixed for format)
 # ============================================
 def transcribe_audio(model, audio_path, with_timestamps=False):
     """Transcribe audio using Whisper, ensuring correct format"""
@@ -152,6 +161,7 @@ def transcribe_audio(model, audio_path, with_timestamps=False):
     except Exception as e:
         st.error(f"Transcription error: {e}")
         return None
+
 # ============================================
 # PLOTS
 # ============================================
@@ -209,12 +219,6 @@ elif input_method == "🎙️ Record from Microphone":
             audio_path = tmp_file.name
         st.audio(audio_bytes)
 
-    if audio_bytes:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-            tmp_file.write(audio_bytes)
-            audio_path = tmp_file.name
-        st.audio(audio_bytes)
-
 # ============================================
 # ANALYSIS PIPELINE
 # ============================================
@@ -235,14 +239,14 @@ if audio_path and st.button(" Analyze Audio"):
             feats = extract_handcrafted_features(audio, sr)
             results = predict_via_hf_api(feats, model_choice)
             if results:
-                st.metric("Predicted Emotion", results['emotion'].upper())
-                st.metric("Confidence", f"{results['confidence']:.2f}")
+                st.metric("Predicted Emotion", results.get('emotion', 'UNKNOWN').upper())
+                st.metric("Confidence", f"{results.get('confidence', 0):.2f}")
 
                 if show_spectrogram:
                     st.pyplot(plot_spectrogram(audio, sr))
 
                 if "probabilities" in results:
-                    st.pyplot(plot_emotion_distribution(results['probabilities']))
+                    st.pyplot(plot_emotion_distribution(results["probabilities"]))
 
         if os.path.exists(audio_path):
             os.unlink(audio_path)
